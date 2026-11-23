@@ -1,147 +1,353 @@
-# 🎒 Smart Campus Lost & Found — Backend API
+# Alpha Lost & Found — Smart Campus Lost and Found Platform
 
-A production-ready **FastAPI** backend for a campus-wide Lost & Found platform featuring **multimodal AI similarity matching** (CLIP image embeddings + MiniLM text embeddings stored in PostgreSQL `pgvector`), **Cloudinary** media storage, **role-based JWT authentication**, and an **admin verification workflow** with hidden ownership clues.
+A web-based campus lost-and-found application. Students can report lost or found belongings, browse reports, submit ownership claims, and receive notifications. The backend includes an AI-assisted matching pipeline that compares text, images, and item metadata to identify potentially related reports.
 
----
+## Features
 
-## 🏗️ System Architecture & Tech Stack
+- Student registration and login using JWT authentication.
+- Role-based access for students and administrators.
+- Create, browse, update, and delete lost/found item reports.
+- Upload item images to Cloudinary.
+- AI-assisted matching between lost and found reports.
+- Store text and image embeddings in PostgreSQL using `pgvector`.
+- Submit ownership claims for found items.
+- Admin review and approval/rejection of claims using private ownership clues.
+- In-app notifications for potential matches and claim updates.
+- Interactive API documentation through FastAPI Swagger UI.
 
-| Layer | Technology | Purpose |
-| :--- | :--- | :--- |
-| **API Framework** | FastAPI + Uvicorn (Python 3.11+) | Async REST API, `multipart/form-data` uploads, auto-generated OpenAPI/Swagger docs |
-| **Database & Vectors** | PostgreSQL (Neon Cloud) + `pgvector` | Relational storage + `VECTOR(512)` & `VECTOR(384)` similarity columns |
-| **ORM & Validation** | SQLAlchemy 2.x + Pydantic v2 | Schema validation, SQL mapping, and strict privacy filtering (`hidden_details`) |
-| **Authentication** | JWT (`python-jose`) + Bcrypt (`passlib`) | `HTTPBearer` token auth with `student` and `admin` role guards |
-| **Media Storage** | Cloudinary SDK | External image hosting returning public HTTPS `secure_url` links |
-| **AI Matching Engine** | Hugging Face Inference API + NumPy | Background embedding generation (`clip-vit-base-patch32` + `all-MiniLM-L6-v2`) & cosine similarity ranking |
+## Technology Stack
 
----
+| Layer | Technologies |
+|---|---|
+| Frontend | React 18, Vite, React Router, Tailwind CSS |
+| Backend | Python, FastAPI, Uvicorn |
+| Database | PostgreSQL, SQLAlchemy, pgvector |
+| Authentication | JWT, `python-jose`, Passlib, bcrypt |
+| Image storage | Cloudinary |
+| Text model | `sentence-transformers/all-MiniLM-L6-v2` |
+| Image model | `openai/clip-vit-base-patch32` |
+| ML libraries | Hugging Face Hub, Sentence Transformers, Transformers, PyTorch, NumPy |
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
-smart-campus-lost-and-found-backend/
-├── app/
-│   ├── main.py                  # FastAPI app initialization, CORS, lifespan DB bootstrap
-│   ├── config.py                # Pydantic settings loader (.env)
-│   ├── database.py              # SQLAlchemy engine, session dependency, pgvector init
-│   ├── models.py                # ORM tables: users, items, claims, matches, notifications
-│   ├── schemas.py               # Request/response Pydantic schemas (strips hidden_details publicly)
-│   ├── auth.py                  # Password hashing, JWT creation, HTTPBearer & admin guards
-│   ├── routers/
-│   │   ├── auth.py              # POST /auth/register, POST /auth/login, GET /auth/me
-│   │   ├── items.py             # CRUD for lost/found items, image upload, AI match lookup
-│   │   ├── claims.py            # Student claim submissions & status tracking
-│   │   ├── admin.py             # Admin claim review (side-by-side hidden clues) & approval/rejection
-│   │   └── notifications.py     # In-app match and claim alerts
-│   └── services/
-│       ├── cloudinary_svc.py    # Image validation & Cloudinary upload handler
-│       └── ai_matcher.py        # Background CLIP + MiniLM embedding & cosine similarity engine
-├── .env.example                 # Environment variable template
-├── .gitignore                   # Ignores .env, venv, __pycache__, IDE files
-├── requirements.txt             # Python dependencies
-└── README.md                    # Project documentation
+Alpha-Lost-and-found-project/
+├── Frontend/
+│   ├── src/
+│   │   ├── api/             # Backend API client
+│   │   ├── components/      # Reusable UI components
+│   │   ├── context/         # Authentication and items state
+│   │   ├── data/            # Frontend data and categories
+│   │   ├── pages/           # Application pages
+│   │   ├── App.jsx
+│   │   └── main.jsx
+│   ├── package.json
+│   └── README.md
+│
+├── smart-campus-lost-and-found-backend/
+│   ├── app/
+│   │   ├── routers/         # Authentication, items, claims, notifications
+│   │   ├── services/        # AI matcher and Cloudinary service
+│   │   ├── auth.py
+│   │   ├── config.py
+│   │   ├── database.py
+│   │   ├── main.py
+│   │   ├── models.py
+│   │   └── schemas.py
+│   ├── .env.example
+│   └── requirements.txt
+│
+└── README.md
 ```
 
----
+## Prerequisites
 
-## 🗄️ Database Schema (`PostgreSQL + pgvector`)
+Install the following before running the project:
 
-1. **`users`**: Stores `id` (UUID), `full_name`, `email` (unique), `password_hash`, `role` (`student` | `admin`), and `created_at`.
-2. **`items`**: Stores lost/found reports (`report_type`, `title`, `description`, `category`, `location`, `event_date`, `image_url`, `hidden_details`, `status`), plus `image_embedding VECTOR(512)` and `text_embedding VECTOR(384)`.
-3. **`claims`**: Tracks ownership requests (`item_id`, `claimant_id`, `proof_description`, `status`: `pending` | `approved` | `rejected`, `admin_notes`).
-4. **`matches`**: Stores AI-computed `lost_item_id` ↔ `found_item_id` pairs with `image_score`, `text_score`, `combined_score`, and `is_dismissed`.
-5. **`notifications`**: Delivers in-app alerts (`match_found`, `claim_submitted`, `claim_resolved`) to users.
+- Python 3.10 or newer
+- Node.js and npm
+- PostgreSQL database with permission to enable the `vector` extension (for example, a compatible Neon PostgreSQL database)
+- Cloudinary account
+- Hugging Face account and an access token with the required Inference Provider permissions
 
----
+## Configuration
 
-## 🚀 Local Setup & Installation
+### 1. Backend environment variables
 
-### 1. Clone the Repository & Install Dependencies
+Open a terminal in the backend directory:
+
 ```bash
-git clone <your-github-repo-url>
 cd smart-campus-lost-and-found-backend
-
-python -m venv venv
-# Windows PowerShell:
-.\venv\Scripts\Activate.ps1
-# macOS/Linux:
-# source venv/bin/activate
-
-pip install -r requirements.txt
-pip install "psycopg[binary]"
 ```
 
-### 2. Configure Environment Variables
-Copy `.env.example` to `.env` and fill in your credentials:
+Copy `.env.example` to `.env`.
+
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+macOS/Linux:
+
 ```bash
 cp .env.example .env
 ```
 
+Edit `.env` and provide your own credentials:
+
 ```env
-DATABASE_URL=postgresql://neondb_owner:<password>@<host>.neon.tech/neondb?sslmode=require
-SECRET_KEY=<64-char-hex-from-secrets.token_hex(32)>
+DATABASE_URL=postgresql://YOUR_USER:YOUR_PASSWORD@YOUR_HOST/YOUR_DATABASE?sslmode=require
+
+SECRET_KEY=replace_with_a_long_random_secret
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
+
 ALLOWED_EMAIL_DOMAIN=
-CORS_ORIGINS=http://localhost:5173,[http://127.0.0.1:5173](http://127.0.0.1:5173)
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 
-CLOUDINARY_CLOUD_NAME=<your_cloud_name>
-CLOUDINARY_API_KEY=<your_api_key>
-CLOUDINARY_API_SECRET=<your_api_secret>
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_cloudinary_api_key
+CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 
-HF_TOKEN=hf_<your_hugging_face_token>
+HF_TOKEN=hf_your_hugging_face_access_token
 ```
-> **Note:** Leave `ALLOWED_EMAIL_DOMAIN=` blank during local testing to allow any email domain, or set it to your campus domain (e.g., `nie.ac.in`) in production.
 
-### 3. Start the Development Server
+Do not commit `.env` or share its contents. Keep database passwords, JWT secrets, Cloudinary credentials, and the Hugging Face token on the backend only.
+
+`ALLOWED_EMAIL_DOMAIN` can be left empty during development. To restrict registration to a campus domain, set it to the domain only, for example `example.edu`.
+
+### 2. Install backend dependencies
+
+Create and activate a virtual environment.
+
+Windows PowerShell:
+
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+```
+
+macOS/Linux:
+
 ```bash
-python -m uvicorn app.main:app --reload
+python -m venv venv
+source venv/bin/activate
 ```
-* **API Base URL:** `http://127.0.0.1:8000`
-* **Interactive Swagger Docs:** `http://127.0.0.1:8000/docs`
 
-On startup, `init_db()` automatically enables the `vector` extension and creates all 5 tables if they do not already exist.
+Install the listed dependencies:
 
----
+```bash
+pip install -r requirements.txt
+```
 
-## 🔌 API Endpoints Overview
+The current AI matching service imports `httpx`; if it is not already installed in your environment, install it with:
 
-### Authentication (`/auth`)
-* `POST /auth/register` — Register a new student account and receive a JWT token.
-* `POST /auth/login` — Authenticate with `{ "email", "password" }` and receive a Bearer token.
-* `GET /auth/me` — Fetch the currently authenticated user's profile and role.
+```bash
+pip install httpx
+```
 
-### Items & AI Matching (`/items`)
-* `POST /items` (`multipart/form-data`) — Report a `lost` or `found` item with optional image upload (uploaded to Cloudinary) and `hidden_details`. Triggers background AI matching.
-* `GET /items` — List and filter items by `report_type`, `category`, `status`, and search query (`q`). *(`hidden_details` is stripped from all public responses.)*
-* `GET /items/{item_id}` — Get full public details for a specific item.
-* `GET /items/{item_id}/matches` — Retrieve AI-ranked candidate matches for a lost/found item.
-* `PATCH /items/{item_id}/status` — Update item status (`open`, `claimed`, `resolved`).
+### 3. Configure the frontend
 
-### Claims & Admin Verification (`/claims` & `/admin`)
-* `POST /claims` — Submit an ownership claim with `proof_description` for a found item.
-* `GET /claims/me` — View claims submitted by the logged-in student.
-* `GET /admin/claims` *(Admin only)* — View pending claims alongside the reporter's private `item_hidden_details` for verification.
-* `PATCH /admin/claims/{claim_id}` *(Admin only)* — Approve or reject a claim, automatically updating item status and notifying the claimant.
+Open another terminal and move to the frontend directory:
 
-### Notifications (`/notifications`)
-* `GET /notifications` — List notifications for the current user.
-* `PATCH /notifications/{notification_id}/read` — Mark a notification as read.
+```bash
+cd Frontend
+npm install
+```
 
----
+The frontend API client uses this default backend URL:
 
-## 🧠 Notes for Teammates
+```text
+http://localhost:8000
+```
 
-### For Frontend Developers
-* Authenticate requests by passing `Authorization: Bearer <access_token>` in request headers.
-* Submit new items to `POST /items` using `FormData` (do not manually set `Content-Type`; let the browser set the `multipart/form-data` boundary).
-* Render item photos directly via `<img src={item.image_url} />`—Cloudinary returns public HTTPS URLs.
+To use a different backend URL, create a `Frontend/.env` file:
 
-### For ML / AI Developers
-* Embedding generation and scoring live in `app/services/ai_matcher.py`.
-* **Models Used:** `openai/clip-vit-base-patch32` (512-d image vectors) and `sentence-transformers/all-MiniLM-L6-v2` (384-d text vectors) via `huggingface_hub.InferenceClient`.
-* **Scoring Formula:** When both image embeddings exist, `combined_score = 0.60 * image_cosine + 0.40 * text_cosine`; otherwise `combined_score = text_cosine`. Pairs scoring `>= 0.72` are saved to `matches` and trigger user notifications.
-* To promote a test account to Admin in Neon SQL Editor:
-  ```sql
-  UPDATE users SET role = 'admin' WHERE email = 'your_email@example.com';
-  ```
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+Restart the Vite development server after changing frontend environment variables.
+
+## Run the Application
+
+Run the backend and frontend in separate terminals.
+
+### Start the backend
+
+From `smart-campus-lost-and-found-backend`, with the virtual environment activated:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Backend base URL:
+
+```text
+http://localhost:8000
+```
+
+Swagger API documentation:
+
+```text
+http://localhost:8000/docs
+```
+
+Health check:
+
+```text
+http://localhost:8000/health
+```
+
+At startup, the backend calls `init_db()`, which attempts to enable PostgreSQL's `vector` extension and creates the SQLAlchemy tables if they do not exist. The database user must have the necessary permissions, and the PostgreSQL server must support `pgvector`.
+
+### Start the frontend
+
+From the `Frontend` directory:
+
+```bash
+npm run dev
+```
+
+Open the Vite URL shown in the terminal, normally:
+
+```text
+http://localhost:5173
+```
+
+To create a production frontend build:
+
+```bash
+npm run build
+```
+
+## AI Matching Workflow
+
+When a student submits a lost or found item, the backend saves the report and schedules the matching pipeline as a background task.
+
+1. The backend builds text input from the item's title, category, and description.
+2. It requests a text embedding using the Hugging Face Inference API and the MiniLM model.
+3. If the hosted text inference request is unavailable or does not return the expected vector, the current matcher attempts a local Sentence Transformers fallback.
+4. If the report has an image, the backend downloads it from its image URL and generates an image embedding using the locally loaded CLIP model.
+5. The embeddings are stored on the item record in PostgreSQL.
+6. The matcher compares the new report with open reports of the opposite type (lost versus found).
+7. It combines text similarity, image similarity when both images are available, and metadata similarity.
+8. Candidate pairs meeting the configured threshold are saved as match records. A notification is created for the lost item's reporter when a new match is recorded.
+
+### Models and vector dimensions
+
+| Model | Purpose | Embedding dimension | Execution in the current code |
+|---|---|---:|---|
+| `sentence-transformers/all-MiniLM-L6-v2` | Text embeddings | 384 | Hugging Face Inference API first; local Sentence Transformers fallback |
+| `openai/clip-vit-base-patch32` | Image embeddings | 512 | Local Transformers/PyTorch inference; model files are obtained from Hugging Face |
+
+**Important:** Downloading a model from Hugging Face is not the same as calling the hosted Hugging Face Inference API. In the current `app/services/ai_matcher.py`, the text model uses the hosted API first, while CLIP image inference runs locally.
+
+The current matcher uses these starting weights:
+
+- When both image embeddings are available: text `0.50`, image `0.35`, metadata `0.15`.
+- When image similarity is unavailable: text `0.80`, metadata `0.20`.
+- The configured match threshold is `0.65`.
+
+These are configuration values in the current source code, not independently validated accuracy guarantees. They should be evaluated and tuned using representative campus lost-and-found examples.
+
+## Database Overview
+
+The SQLAlchemy models define these main tables:
+
+| Table | Purpose |
+|---|---|
+| `users` | Student and administrator accounts |
+| `items` | Lost/found reports and their text/image embeddings |
+| `claims` | Ownership claim submissions and review status |
+| `matches` | Candidate lost/found pairs and similarity scores |
+| `notifications` | Match and claim notifications |
+
+The `items` table stores `text_embedding` as `VECTOR(384)` and `image_embedding` as `VECTOR(512)`.
+
+## API Overview
+
+The backend exposes these routes. Open `/docs` while the backend is running for request schemas, response formats, and interactive testing.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/auth/register` | Register a student |
+| POST | `/auth/login` | Log in and receive an access token |
+| GET | `/auth/me` | Get the authenticated user's profile |
+| POST | `/items` | Create a lost/found report |
+| GET | `/items` | Browse and filter reports |
+| GET | `/items/my` | Get the current user's reports |
+| GET | `/items/{item_id}` | Get a report |
+| PATCH | `/items/{item_id}` | Update a report |
+| DELETE | `/items/{item_id}` | Delete a report |
+| GET | `/items/{item_id}/matches` | Get matches for a report |
+| PATCH | `/items/{item_id}/matches/{match_id}/dismiss` | Dismiss a match |
+| POST | `/claims` | Submit an ownership claim |
+| GET | `/claims/my` | Get the current user's claims |
+| GET | `/admin/claims` | List claims for admin review |
+| PATCH | `/admin/claims/{claim_id}` | Approve or reject a claim |
+| GET | `/notifications` | List the current user's notifications |
+| PATCH | `/notifications/{notification_id}/read` | Mark a notification as read |
+| GET | `/health` | Check backend health |
+
+Protected endpoints require the access token in the request header:
+
+```http
+Authorization: Bearer YOUR_ACCESS_TOKEN
+```
+
+The item creation endpoint accepts `multipart/form-data`. The frontend should send a `FormData` object and allow the browser to set the multipart content-type boundary.
+
+## Important Security Notes
+
+- Never expose `HF_TOKEN`, Cloudinary secrets, database credentials, or `SECRET_KEY` in frontend code.
+- Do not commit `.env` files to source control.
+- Use HTTPS and strong secrets when deploying.
+- Keep `hidden_details` private; it is intended for ownership verification and should not be exposed in public item responses.
+- Restrict administrator access and protect admin routes.
+- The frontend and backend should both be configured for the intended deployment origins.
+
+## Troubleshooting
+
+### Backend cannot start because settings are missing
+
+- Confirm that `.env` is inside `smart-campus-lost-and-found-backend/`.
+- Check that all required variables in `.env` have values.
+- Ensure the backend is launched from its backend directory.
+
+### Database or `vector` extension error
+
+- Check the database URL and credentials.
+- Confirm that the PostgreSQL provider supports `pgvector`.
+- Confirm that the database role can create or use the `vector` extension.
+- Check the installed PostgreSQL driver and connection URL format.
+
+### Hugging Face inference error
+
+- Confirm that `HF_TOKEN` is valid and loaded by the backend.
+- Check that the token has permission to use the required Inference Provider.
+- Confirm that the selected model is available through a provider for your account.
+- Check the backend logs. The current text matcher may fall back to local Sentence Transformers when hosted inference fails.
+
+### Image embeddings are not generated
+
+- Confirm that the report has a valid, reachable image URL.
+- Check that the image can be downloaded and decoded.
+- Confirm that PyTorch and Transformers are installed and that the CLIP model can be loaded.
+- Check backend logs for image download or model loading errors.
+
+### Frontend cannot connect to the backend
+
+- Start FastAPI and confirm `http://localhost:8000/health` responds.
+- Check `VITE_API_URL` in `Frontend/.env`, if configured.
+- Confirm the frontend origin is allowed by backend CORS settings.
+- Restart Vite after changing environment variables.
+
+## Development Notes
+
+- The AI matching pipeline is scheduled as a FastAPI background task after item creation and after selected item edits.
+- Reports are compared only against open reports of the opposite report type.
+- Reports already in the database without embeddings may need to be reprocessed before they can participate in semantic matching.
+- Similarity scores and the threshold are heuristics; validate them against real test cases before relying on them operationally.
+- The commands in this README describe local development. Production deployment requires separate configuration for hosting, secrets, database access, CORS, and file storage.
+
