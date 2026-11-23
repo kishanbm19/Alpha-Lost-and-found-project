@@ -22,8 +22,6 @@ def submit_claim(
         raise HTTPException(status_code=400, detail="Claims can only be submitted on found items.")
     if item.status == "resolved":
         raise HTTPException(status_code=400, detail="This item has already been returned.")
-    if item.reporter_id == current_user.id:
-        raise HTTPException(status_code=400, detail="You cannot claim an item you reported.")
 
     existing = (
         db.query(Claim)
@@ -31,7 +29,10 @@ def submit_claim(
         .first()
     )
     if existing:
-        raise HTTPException(status_code=409, detail="You have already submitted a claim for this item.")
+        raise HTTPException(
+            status_code=409,
+            detail=f"You have already submitted a claim for this item (Current status: {existing.status}).",
+        )
 
     claim = Claim(
         item_id=payload.item_id,
@@ -40,14 +41,15 @@ def submit_claim(
     )
     item.status = "under_review"
     db.add(claim)
-    db.add(
-        Notification(
-            user_id=item.reporter_id,
-            item_id=item.id,
-            type="claim_submitted",
-            message=f"A student has submitted an ownership claim for your found item '{item.title}'.",
+    if item.reporter_id != current_user.id:
+        db.add(
+            Notification(
+                user_id=item.reporter_id,
+                item_id=item.id,
+                type="claim_submitted",
+                message=f"A student has submitted an ownership claim for your found item '{item.title}'.",
+            )
         )
-    )
     db.commit()
     db.refresh(claim)
     return claim
