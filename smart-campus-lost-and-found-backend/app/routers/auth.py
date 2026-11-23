@@ -11,16 +11,17 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register(payload: UserRegister, db: Session = Depends(get_db)):
-    if settings.ALLOWED_EMAIL_DOMAIN:
+    allowed_domain = settings.ALLOWED_EMAIL_DOMAIN.strip().lower() if settings.ALLOWED_EMAIL_DOMAIN else ""
+    if allowed_domain:
         domain = payload.email.split("@")[-1].lower()
-        if domain != settings.ALLOWED_EMAIL_DOMAIN.lower():
+        if domain != allowed_domain:
             raise HTTPException(
                 status_code=400,
-                detail=f"Registration restricted to @{settings.ALLOWED_EMAIL_DOMAIN} emails.",
+                detail=f"Registration restricted to @{allowed_domain} emails.",
             )
 
     if db.query(User).filter(User.email == payload.email.lower()).first():
-        raise HTTPException(status_code=409, detail="Email is already registered.")
+        raise HTTPException(status_code=409, detail="Email is already registered. Please login instead.")
 
     user = User(
         full_name=payload.full_name,

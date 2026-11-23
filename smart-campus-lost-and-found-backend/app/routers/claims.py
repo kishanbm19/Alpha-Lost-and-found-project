@@ -40,6 +40,14 @@ def submit_claim(
     )
     item.status = "under_review"
     db.add(claim)
+    db.add(
+        Notification(
+            user_id=item.reporter_id,
+            item_id=item.id,
+            type="claim_submitted",
+            message=f"A student has submitted an ownership claim for your found item '{item.title}'.",
+        )
+    )
     db.commit()
     db.refresh(claim)
     return claim

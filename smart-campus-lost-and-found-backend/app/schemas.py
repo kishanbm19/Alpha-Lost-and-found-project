@@ -66,6 +66,16 @@ class PaginatedItemsOut(BaseModel):
     items: List[ItemPublicOut]
 
 
+class ItemUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=2, max_length=120)
+    description: Optional[str] = Field(None, min_length=5)
+    category: Optional[CategoryEnum] = None
+    location: Optional[str] = Field(None, min_length=2, max_length=100)
+    event_date: Optional[date] = None
+    status: Optional[Literal["open", "under_review", "resolved"]] = None
+    hidden_details: Optional[str] = None
+
+
 class ClaimCreate(BaseModel):
     item_id: UUID
     proof_description: str = Field(..., min_length=10)
@@ -79,6 +89,7 @@ class ClaimOut(BaseModel):
     status: str
     admin_notes: Optional[str]
     created_at: datetime
+    item: Optional[ItemPublicOut] = None
 
     class Config:
         from_attributes = True
